@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备星级评价检查系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#165DFF',
+                        secondary: '#36CFC9',
+                        accent: '#FF7D00',
+                        danger: '#F53F3F',
+                        success: '#00B42A',
+                        neutral: '#86909C',
+                        light: '#F2F3F5',
+                        dark: '#1D2129'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .card-shadow {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .transition-custom {
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            .thumbnail-hover {
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .thumbnail-hover:hover {
+                transform: scale(1.03);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+    <!-- 顶部导航 -->
+    <header class="bg-primary text-white shadow-md sticky top-0 z-50 transition-custom">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center flex-wrap gap-3">
+            <div class="flex items-center space-x-2">
+                <i class="fa fa-cogs text-2xl"></i>
+                <h1 class="text-xl md:text-2xl font-bold">设备星级评价检查系统</h1>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button id="exportPhotosBtn" class="flex items-center text-sm bg-secondary hover:bg-secondary/90 px-3 py-1.5 rounded transition-custom">
+                    <i class="fa fa-picture-o mr-1"></i> 导出所有照片
+                </button>
+                <button id="summaryBtn" class="flex items-center text-sm hover:bg-primary/80 px-3 py-1.5 rounded transition-custom">
+                    <i class="fa fa-bar-chart mr-1"></i> 汇总数据
+                </button>
+                <button id="exportBtn" class="flex items-center text-sm bg-accent hover:bg-accent/90 px-3 py-1.5 rounded transition-custom">
+                    <i class="fa fa-download mr-1"></i> 导出Excel
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6 md:py-8">
+        <!-- 表单卡片 -->
+        <div class="bg-white rounded-xl p-5 md:p-6 card-shadow mb-6 transform hover:shadow-lg transition-custom">
+            <h2 class="text-lg md:text-xl font-semibold text-dark mb-5 pb-2 border-b border-gray-100">设备检查记录</h2>
+            
+            <form id="inspectionForm" class="space-y-4 md:space-y-6">
+                <!-- 设备编号和检查日期 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="equipmentId" class="block text-sm font-medium text-gray-700 mb-1">设备编号 <span class="text-danger">*</span></label>
+                        <input type="text" id="equipmentId" name="equipmentId" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-custom"
+                            placeholder="请输入设备编号" required>
+                    </div>
+                    
+                    <div>
+                        <label for="inspectionDate" class="block text-sm font-medium text-gray-700 mb-1">检查日期 <span class="text-danger">*</span></label>
+                        <input type="date" id="inspectionDate" name="inspectionDate" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-custom"
+                            required>
+                    </div>
+                </div>
+                
+                <!-- 整改内容 -->
+                <div>
+                    <label for="rectificationContent" class="block text-sm font-medium text-gray-700 mb-1">整改内容 <span class="text-danger">*</span></label>
+                    <textarea id="rectificationContent" name="rectificationContent" rows="4"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-custom resize-none"
+                        placeholder="请输入整改内容..." required></textarea>
+                </div>
+                
+                <!-- 照片上传区域 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- 整改前照片 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">整改前照片 <span class="text-danger">*</span></label>
+                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary transition-custom cursor-pointer" id="beforeUploadArea">
+                            <input type="file" id="beforePhoto" accept="image/*" class="hidden" required>
+                            <div id="beforePreviewContainer" class="hidden">
+                                <img id="beforePreview" src="" alt="整改前预览" class="max-w-full max-h-48 mx-auto rounded-md object-contain thumbnail-hover">
+                                <button type="button" id="removeBefore" class="mt-2 text-danger text-sm hover:underline">
+                                    <i class="fa fa-times-circle mr-1"></i> 移除图片
+                                </button>
+                            </div>
+                            <div id="beforeUploadPrompt" class="py-8">
+                                <i class="fa fa-camera text-3xl text-gray-400 mb-2"></i>
+                                <p class="text-sm text-gray-500">点击上传整改前照片</p>
+                                <p class="text-xs text-gray-400 mt-1">支持JPG、PNG格式</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 整改后照片 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">整改后照片 <span class="text-danger">*</span></label>
+                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary transition-custom cursor-pointer" id="afterUploadArea">
+                            <input type="file" id="afterPhoto" accept="image/*" class="hidden" required>
+                            <div id="afterPreviewContainer" class="hidden">
+                                <img id="afterPreview" src="" alt="整改后预览" class="max-w-full max-h-48 mx-auto rounded-md object-contain thumbnail-hover">
+                                <button type="button" id="removeAfter" class="mt-2 text-danger text-sm hover:underline">
+                                    <i class="fa fa-times-circle mr-1"></i> 移除图片
+                                </button>
+                            </div>
+                            <div id="afterUploadPrompt" class="py-8">
+                                <i class="fa fa-camera text-3xl text-gray-400 mb-2"></i>
+                                <p class="text-sm text-gray-500">点击上传整改后照片</p>
+                                <p class="text-xs text-gray-400 mt-1">支持JPG、PNG格式</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 提交按钮 -->
+                <div class="flex justify-end pt-2">
+                    <button type="submit" class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-medium transition-custom flex items-center">
+                        <i class="fa fa-check mr-2"></i> 确定
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- 汇总数据区域 -->
+        <div id="summarySection" class="bg-white rounded-xl p-5 md:p-6 card-shadow mb-6 hidden transform hover:shadow-lg transition-custom">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-5 pb-2 border-b border-gray-100 gap-3">
+                <h2 class="text-lg md:text-xl font-semibold text-dark">检查记录汇总</h2>
+                <div class="flex items-center space-x-2 w-full md:w-auto">
+                    <span class="text-sm text-gray-500">排序方式:</span>
+                    <select id="sortSelect" class="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-1 focus:ring-primary focus:border-primary outline-none w-full md:w-auto">
+                        <option value="date-desc">按日期倒序</option>
+                        <option value="date-asc">按日期正序</option>
+                        <option value="id-asc">按设备编号正序</option>
+                        <option value="id-desc">按设备编号倒序</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- 汇总统计 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-light rounded-lg p-4">
+                    <p class="text-sm text-gray-500 mb-1">总记录数</p>
+                    <p id="totalCount" class="text-2xl font-bold text-primary">0</p>
+                </div>
+                <div class="bg-light rounded-lg p-4">
+                    <p class="text-sm text-gray-500 mb-1">设备总数</p>
+                    <p id="equipmentCount" class="text-2xl font-bold text-secondary">0</p>
+                </div>
+                <div class="bg-light rounded-lg p-4">
+                    <p class="text-sm text-gray-500 mb-1">本月记录</p>
+                    <p id="monthCount" class="text-2xl font-bold text-accent">0</p>
+                </div>
+                <div class="bg-light rounded-lg p-4">
+                    <p class="text-sm text-gray-500 mb-1">照片总数</p>
+                    <p id="photosCount" class="text-2xl font-bold text-primary">0</p>
+                </div>
+            </div>
+            
+            <!-- 设备分组选择 -->
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 mb-2">按设备编号筛选</label>
+                <div class="flex flex-wrap gap-2" id="equipmentFilter">
+                    <button class="equipment-filter-btn bg-primary text-white text-sm px-3 py-1 rounded-full" data-id="all">全部设备</button>
+                    <!-- 设备编号筛选按钮将动态添加 -->
+                </div>
+            </div>
+            
+            <!-- 记录列表 -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">设备编号</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">检查日期</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">整改内容</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">整改前照片</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">整改后照片</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recordsTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- 记录将动态添加 -->
+                        <tr class="text-center">
+                            <td colspan="6" class="px-4 py-8 text-gray-500">
+                                <i class="fa fa-folder-open-o text-2xl mb-2 block"></i>
+                                暂无检查记录
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部信息 -->
+    <footer class="bg-white border-t border-gray-200 py-4 mt-8">
+        <div class="container mx-auto px-4 text-center text-sm text-gray-500">
+            <p>设备星级评价检查系统 &copy; 2023</p>
+        </div>
+    </footer>
+
+    <!-- 提示框 -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-dark text-white px-4 py-2 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 flex items-center z-50">
+        <i id="toastIcon" class="fa fa-info-circle mr-2"></i>
+        <span id="toastMessage"></span>
+    </div>
+
+    <!-- 确认删除模态框 -->
+    <div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 transform transition-all">
+            <h3 class="text-lg font-semibold text-gray-900 mb-3">确认删除</h3>
+            <p class="text-gray-600 mb-5">您确定要删除这条检查记录吗？此操作不可撤销。</p>
+            <div class="flex justify-end space-x-3">
+                <button id="cancelDelete" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-custom">取消</button>
+                <button id="confirmDelete" class="px-4 py-2 bg-danger text-white rounded-lg hover:bg-danger/90 transition-custom">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 照片导出进度模态框 -->
+    <div id="exportPhotosModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 transform transition-all">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">正在导出照片</h3>
+            <div class="mb-4">
+                <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div id="exportProgressBar" class="h-full bg-primary w-0 transition-all duration-300"></div>
+                </div>
+                <p id="exportProgressText" class="text-sm text-gray-500 mt-2">准备中...</p>
+            </div>
+            <button id="cancelExportPhotos" class="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-custom">取消</button>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let inspectionRecords = JSON.parse(localStorage.getItem('inspectionRecords')) || [];
+        let currentRecordId = null;
+        let exportAbort = false;
+        
+        // DOM 元素
+        const form = document.getElementById('inspectionForm');
+        const equipmentIdInput = document.getElementById('equipmentId');
+        const inspectionDateInput = document.getElementById('inspectionDate');
+        const rectificationInput = document.getElementById('rectificationContent');
+        const beforePhotoInput = document.getElementById('beforePhoto');
+        const afterPhotoInput = document.getElementById('afterPhoto');
+        const beforeUploadArea = document.getElementById('beforeUploadArea');
+        const afterUploadArea = document.getElementById('afterUploadArea');
+        const beforePreviewContainer = document.getElementById('beforePreviewContainer');
+        const afterPreviewContainer = document.getElementById('afterPreviewContainer');
+        const beforePreview = document.getElementById('beforePreview');
+        const afterPreview = document.getElementById('afterPreview');
+        const removeBeforeBtn = document.getElementById('removeBefore');
+        const removeAfterBtn = document.getElementById('removeAfter');
+        const summaryBtn = document.getElementById('summaryBtn');
+        const summarySection = document.getElementById('summarySection');
+        const recordsTableBody = document.getElementById('recordsTableBody');
+        const equipmentFilter = document.getElementById('equipmentFilter');
+        const sortSelect = document.getElementById('sortSelect');
+        const exportBtn = document.getElementById('exportBtn');
+        const exportPhotosBtn = document.getElementById('exportPhotosBtn');
+        const totalCountEl = document.getElementById('totalCount');
+        const equipmentCountEl = document.getElementById('equipmentCount');
+        const monthCountEl = document.getElementById('monthCount');
+        const photosCountEl = document.getElementById('photosCount');
+        const deleteModal = document.getElementById('deleteModal');
+        const cancelDeleteBtn = document.getElementById('cancelDelete');
+        const confirmDeleteBtn = document.getElementById('confirmDelete');
+        const exportPhotosModal = document.getElementById('exportPhotosModal');
+        const exportProgressBar = document.getElementById('exportProgressBar');
+        const exportProgressText = document.getElementById('exportProgressText');
+        const cancelExportPhotosBtn = document.getElementById('cancelExportPhotos');
+        
+        // 初始化日期为今天
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            inspectionDateInput.value = today;
+            
+            // 检查是否有记录，如果有则显示汇总按钮
+            if (inspectionRecords.length > 0) {
+                updateSummarySection();
+            }
+        });
+        
+        // 照片上传处理
+        beforeUploadArea.addEventListener('click', () => {
+            beforePhotoInput.click();
+        });
+        
+        afterUploadArea.addEventListener('click', () => {
+            afterPhotoInput.click();
+        });
+        
+        beforePhotoInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    beforePreview.src = event.target.result;
+                    beforePreviewContainer.classList.remove('hidden');
+                    beforeUploadArea.classList.add('border-primary');
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+        
+        afterPhotoInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    afterPreview.src = event.target.result;
+                    afterPreviewContainer.classList.remove('hidden');
+                    afterUploadArea.classList.add('border-primary');
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+        
+        removeBeforeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            beforePhotoInput.value = '';
+            beforePreview.src = '';
+            beforePreviewContainer.classList.add('hidden');
+            beforeUploadArea.classList.remove('border-primary');
+        });
+        
+        removeAfterBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            afterPhotoInput.value = '';
+            afterPreview.src = '';
+            afterPreviewContainer.classList.add('hidden');
+            afterUploadArea.classList.remove('border-primary');
+        });
+        
+        // 表单提交处理
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            // 验证整改后照片是否已上传
+            if (!afterPhotoInput.files || afterPhotoInput.files.length === 0) {
+                showToast('请上传整改后照片', 'warning');
+                afterUploadArea.classList.add('border-danger');
+                setTimeout(() => {
+                    afterUploadArea.classList.remove('border-danger');
+                }, 2000);
+                return;
+            }
+            
+            // 读取照片为base64
+            const beforeFile = beforePhotoInput.files[0];
+            const afterFile = afterPhotoInput.files[0];
+            
+            const readerBefore = new FileReader();
+            const readerAfter = new FileReader();
+            
+            readerBefore.readAsDataURL(beforeFile);
+            readerAfter.readAsDataURL(afterFile);
+            
+            readerBefore.onload = function(beforeEvent) {
+                readerAfter.onload = function(afterEvent) {
+                    // 获取文件扩展名
+                    const beforeExt = beforeFile.name.split('.').pop().toLowerCase();
+                    const afterExt = afterFile.name.split('.').pop().toLowerCase();
+                    
+                    // 创建新记录
+                    const newRecord = {
+                        id: Date.now().toString(),
+                        equipmentId: equipmentIdInput.value.trim(),
+                        inspectionDate: inspectionDateInput.value,
+                        rectification: rectificationInput.value.trim(),
+                        beforePhoto: {
+                            data: beforeEvent.target.result,
+                            ext: beforeExt
+                        },
+                        afterPhoto: {
+                            data: afterEvent.target.result,
+                            ext: afterExt
+                        },
+                        timestamp: new Date().getTime()
+                    };
+                    
+                    // 添加到记录数组
+                    inspectionRecords.push(newRecord);
+                    
+                    // 保存到本地存储
+                    localStorage.setItem('inspectionRecords', JSON.stringify(inspectionRecords));
+                    
+                    // 重置表单
+                    form.reset();
+                    beforePreviewContainer.classList.add('hidden');
+                    afterPreviewContainer.classList.add('hidden');
+                    beforeUploadArea.classList.remove('border-primary');
+                    afterUploadArea.classList.remove('border-primary');
+                    
+                    // 更新汇总区域
+                    updateSummarySection();
+                    
+                    // 显示成功提示
+                    showToast('记录已保存成功', 'success');
+                    
+                    // 自动显示汇总区域
+                    summarySection.classList.remove('hidden');
+                };
+            };
+        });
+        
+        // 汇总按钮点击事件
+        summaryBtn.addEventListener('click', () => {
+            summarySection.classList.toggle('hidden');
+            if (!summarySection.classList.contains('hidden')) {
+                updateSummarySection();
+            }
+        });
+        
+        // 更新汇总区域
+        function updateSummarySection() {
+            if (inspectionRecords.length === 0) {
+                recordsTableBody.innerHTML = `
+                    <tr class="text-center">
+                        <td colspan="6" class="px-4 py-8 text-gray-500">
+                            <i class="fa fa-folder-open-o text-2xl mb-2 block"></i>
+                            暂无检查记录
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // 更新统计数据
+            updateStatistics();
+            
+            // 生成设备筛选按钮
+            generateEquipmentFilters();
+            
+            // 渲染记录表格
+            renderRecordsTable();
+        }
+        
+        // 更新统计数据
+        function updateStatistics() {
+            // 总记录数
+            totalCountEl.textContent = inspectionRecords.length;
+            
+            // 设备总数（去重）
+            const uniqueEquipmentIds = [...new Set(inspectionRecords.map(record => record.equipmentId))];
+            equipmentCountEl.textContent = uniqueEquipmentIds.length;
+            
+            // 本月记录数
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            const monthRecords = inspectionRecords.filter(record => {
+                const date = new Date(record.inspectionDate);
+                return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+            });
+            monthCountEl.textContent = monthRecords.length;
+            
+            // 照片总数
+            let totalPhotos = 0;
+            inspectionRecords.forEach(record => {
+                if (record.beforePhoto) totalPhotos++;
+                if (record.afterPhoto) totalPhotos++;
+            });
+            photosCountEl.textContent = totalPhotos;
+        }
+        
+        // 生成设备筛选按钮
+        function generateEquipmentFilters() {
+            // 保留"全部设备"按钮，清空其他按钮
+            const allBtn = equipmentFilter.querySelector('[data-id="all"]');
+            equipmentFilter.innerHTML = '';
+            equipmentFilter.appendChild(allBtn);
+            
+            // 获取唯一的设备编号
+            const uniqueEquipmentIds = [...new Set(inspectionRecords.map(record => record.equipmentId))]
+                .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+            
+            // 添加设备筛选按钮
+            uniqueEquipmentIds.forEach(id => {
+                const btn = document.createElement('button');
+                btn.className = 'equipment-filter-btn bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full hover:bg-gray-200 transition-custom';
+                btn.dataset.id = id;
+                btn.textContent = id;
+                
+                btn.addEventListener('click', () => {
+                    // 更新按钮样式
+                    document.querySelectorAll('.equipment-filter-btn').forEach(b => {
+                        b.classList.remove('bg-primary', 'text-white');
+                        b.classList.add('bg-gray-100', 'text-gray-700');
+                    });
+                    btn.classList.remove('bg-gray-100', 'text-gray-700');
+                    btn.classList.add('bg-primary', 'text-white');
+                    
+                    // 重新渲染表格
+                    renderRecordsTable(id);
+                });
+                
+                equipmentFilter.appendChild(btn);
+            });
+        }
+        
+        // 渲染记录表格
+        function renderRecordsTable(filterEquipmentId = 'all') {
+            let filteredRecords = [...inspectionRecords];
+            
+            // 应用设备筛选
+            if (filterEquipmentId !== 'all') {
+                filteredRecords = filteredRecords.filter(record => record.equipmentId === filterEquipmentId);
+            }
+            
+            // 应用排序
+            const sortType = sortSelect.value;
+            filteredRecords.sort((a, b) => {
+                switch (sortType) {
+                    case 'date-asc':
+                        return new Date(a.inspectionDate) - new Date(b.inspectionDate);
+                    case 'date-desc':
+                        return new Date(b.inspectionDate) - new Date(a.inspectionDate);
+                    case 'id-asc':
+                        return a.equipmentId.localeCompare(b.equipmentId, undefined, { numeric: true, sensitivity: 'base' });
+                    case 'id-desc':
+                        return b.equipmentId.localeCompare(a.equipmentId, undefined, { numeric: true, sensitivity: 'base' });
+                    default:
+                        return b.timestamp - a.timestamp;
+                }
+            });
+            
+            // 清空表格
+            recordsTableBody.innerHTML = '';
+            
+            // 如果没有记录
+            if (filteredRecords.length === 0) {
+                recordsTableBody.innerHTML = `
+                    <tr class="text-center">
+                        <td colspan="6" class="px-4 py-8 text-gray-500">
+                            <i class="fa fa-search text-2xl mb-2 block"></i>
+                            没有找到匹配的记录
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // 添加记录到表格
+            filteredRecords.forEach(record => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition-custom';
+                
+                // 检查是否有整改后照片
+                const hasAfterPhoto = !!record.afterPhoto && !!record.afterPhoto.data;
+                
+                row.innerHTML = `
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="font-medium text-gray-900">${record.equipmentId}</div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="text-sm text-gray-500">${formatDate(record.inspectionDate)}</div>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="text-sm text-gray-500 max-w-xs truncate" title="${record.rectification}">${record.rectification}</div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="flex flex-col items-start gap-2">
+                            <img src="${record.beforePhoto.data}" alt="整改前照片" class="h-16 w-auto rounded-md thumbnail-hover">
+                            <div class="flex items-center gap-2">
+                                <button class="view-photo-btn text-primary hover:text-primary/80 text-sm" 
+                                        data-photo="${encodeURIComponent(JSON.stringify(record.beforePhoto))}" 
+                                        data-title="整改前照片"
+                                        data-equipment="${record.equipmentId}"
+                                        data-date="${record.inspectionDate}">
+                                    <i class="fa fa-image mr-1"></i> 查看大图
+                                </button>
+                                <button class="download-photo-btn text-secondary hover:text-secondary/80 text-sm" 
+                                        data-photo="${encodeURIComponent(JSON.stringify(record.beforePhoto))}" 
+                                        data-type="before"
+                                        data-equipment="${record.equipmentId}"
+                                        data-date="${record.inspectionDate}">
+                                    <i class="fa fa-download mr-1"></i> 下载
+                                </button>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        ${hasAfterPhoto? `
+                            <div class="flex flex-col items-start gap-2">
+                                <img src="${record.afterPhoto.data}" alt="整改后照片" class="h-16 w-auto rounded-md thumbnail-hover">
+                                <div class="flex items-center gap-2">
+                                    <button class="view-photo-btn text-primary hover:text-primary/80 text-sm" 
+                                            data-photo="${encodeURIComponent(JSON.stringify(record.afterPhoto))}" 
+                                            data-title="整改后照片"
+                                            data-equipment="${record.equipmentId}"
+                                            data-date="${record.inspectionDate}">
+                                        <i class="fa fa-image mr-1"></i> 查看大图
+                                    </button>
+                                    <button class="download-photo-btn text-secondary hover:text-secondary/80 text-sm" 
+                                            data-photo="${encodeURIComponent(JSON.stringify(record.afterPhoto))}" 
+                                            data-type="after"
+                                            data-equipment="${record.equipmentId}"
+                                            data-date="${record.inspectionDate}">
+                                        <i class="fa fa-download mr-1"></i> 下载
+                                    </button>
+                                </div>
+                            </div>
+                        ` : `
+                            <span class="text-danger text-sm"><i class="fa fa-exclamation-circle mr-1"></i> 未上传</span>
+                        `}
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
+                        <button class="delete-record-btn text-danger hover:text-danger/80 mr-3" data-id="${record.id}">
+                            <i class="fa fa-trash mr-1"></i> 删除
+                        </button>
+                    </td>
+                `;
+                
+                recordsTableBody.appendChild(row);
+            });
+            
+            // 添加查看照片事件
+            document.querySelectorAll('.view-photo-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const photoData = JSON.parse(decodeURIComponent(btn.dataset.photo));
+                    const title = btn.dataset.title;
+                    viewPhoto(photoData.data, title);
+                });
+            });
+            
+            // 添加下载照片事件
+            document.querySelectorAll('.download-photo-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const photoData = JSON.parse(decodeURIComponent(btn.dataset.photo));
+                    const type = btn.dataset.type === 'before'? '整改前' : '整改后';
+                    const equipmentId = btn.dataset.equipment;
+                    const date = formatDate(btn.dataset.date);
+                    
+                    downloadPhoto(photoData.data, photoData.ext, equipmentId, date, type);
+                });
+            });
+            
+            // 添加删除记录事件
+            document.querySelectorAll('.delete-record-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentRecordId = btn.dataset.id;
+                    deleteModal.classList.remove('hidden');
+                });
+            });
+        }
+        
+        // 排序选择变化事件
+        sortSelect.addEventListener('change', () => {
+            // 获取当前选中的筛选按钮
+            const activeFilterBtn = document.querySelector('.equipment-filter-btn.bg-primary');
+            const filterEquipmentId = activeFilterBtn? activeFilterBtn.dataset.id : 'all';
+            
+            renderRecordsTable(filterEquipmentId);
+        });
+        
+        // 全部设备按钮点击事件
+        equipmentFilter.querySelector('[data-id="all"]').addEventListener('click', () => {
+            // 更新按钮样式
+            document.querySelectorAll('.equipment-filter-btn').forEach(btn => {
+                btn.classList.remove('bg-primary', 'text-white');
+                btn.classList.add('bg-gray-100', 'text-gray-700');
+            });
+            equipmentFilter.querySelector('[data-id="all"]').classList.remove('bg-gray-100', 'text-gray-700');
+            equipmentFilter.querySelector('[data-id="all"]').classList.add('bg-primary', 'text-white');
+            
+            // 重新渲染表格
+            renderRecordsTable('all');
+        });
+        
+        // 取消删除
+        cancelDeleteBtn.addEventListener('click', () => {
+            deleteModal.classList.add('hidden');
+            currentRecordId = null;
+        });
+        
+        // 确认删除
+        confirmDeleteBtn.addEventListener('click', () => {
+            if (currentRecordId) {
+                // 过滤掉要删除的记录
+                inspectionRecords = inspectionRecords.filter(record => record.id!== currentRecordId);
+                
+                // 保存到本地存储
+                localStorage.setItem('inspectionRecords', JSON.stringify(inspectionRecords));
+                
+                // 更新汇总区域
+                updateSummarySection();
+                
+                // 隐藏模态框
+                deleteModal.classList.add('hidden');
+                currentRecordId = null;
+                
+                // 显示提示
+                showToast('记录已删除', 'info');
+            }
+        });
+        
+        // 导出Excel
+        exportBtn.addEventListener('click', () => {
+            if (inspectionRecords.length === 0) {
+                showToast('没有记录可导出', 'warning');
+                return;
+            }
+            
+            // 准备导出数据
+            const exportData = inspectionRecords.map(record => {
+                return {
+                    '设备编号': record.equipmentId,
+                    '检查日期': formatDate(record.inspectionDate),
+                    '整改内容': record.rectification,
+                    '整改前图片': '有',
+                    '整改后图片': (record.afterPhoto && record.afterPhoto.data)? '有' : '无'
+                };
+            });
+            
+            // 创建工作簿和工作表
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '设备检查记录');
+            
+            // 调整列宽
+            const wscols = [
+                {wch: 12},  // 设备编号
+                {wch: 15},  // 检查日期
+                {wch: 30},  // 整改内容
+                {wch: 10},  // 整改前图片
+                {wch: 10}   // 整改后图片
+            ];
+            worksheet['!cols'] = wscols;
+            
+            // 添加图片到Excel
+            inspectionRecords.forEach((record, index) => {
+                // 行索引从2开始(跳过表头和标题行)
+                const rowIndex = index + 2;
+                
+                // 添加整改前图片
+                if (record.beforePhoto && record.beforePhoto.data) {
+                    const base64Data = record.beforePhoto.data.split(',')[1];
+                    const imageId = workbook.add_image({
+                        type: 'picture',
+                        data: base64Data,
+                        w: 100,
+                        h: 100,
+                        tl: { col: 3, row: rowIndex - 1 },
+                        br: { col: 4, row: rowIndex + 3 }
+                    });
+                    XLSX.utils.sheet_add_image(worksheet, imageId);
+                }
+                
+                // 添加整改后图片
+                if (record.afterPhoto && record.afterPhoto.data) {
+                    const base64Data = record.afterPhoto.data.split(',')[1];
+                    const imageId = workbook.add_image({
+                        type: 'picture',
+                        data: base64Data,
+                        w: 100,
+                        h: 100,
+                        tl: { col: 4, row: rowIndex - 1 },
+                        br: { col: 5, row: rowIndex + 3 }
+                    });
+                    XLSX.utils.sheet_add_image(worksheet, imageId);
+                }
+            });
+            
+            // 获取当前年月作为文件名
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const fileName = `设备检查记录_${year}${month}.xlsx`;
+            
+            // 导出文件
+            XLSX.writeFile(workbook, fileName);
+            
+            showToast('Excel导出成功，包含嵌入的照片', 'success');
+        });
+        
+        // 导出所有照片
+        exportPhotosBtn.addEventListener('click', () => {
+            if (inspectionRecords.length === 0) {
+                showToast('没有照片可导出', 'warning');
+                return;
+            }
+            
+            // 计算总照片数
+            let totalPhotos = 0;
+            inspectionRecords.forEach(record => {
+                if (record.beforePhoto && record.beforePhoto.data) totalPhotos++;
+                if (record.afterPhoto && record.afterPhoto.data) totalPhotos++;
+            });
+            
+            if (totalPhotos === 0) {
+                showToast('没有照片可导出', 'warning');
+                return;
+            }
+            
+            // 显示导出进度模态框
+            exportPhotosModal.classList.remove('hidden');
+            exportProgressBar.style.width = '0%';
+            exportProgressText.textContent = '准备中...';
+            exportAbort = false;
+            
+            // 开始导出
+            exportAllPhotos();
+        });
+        
+        // 取消照片导出
+        cancelExportPhotosBtn.addEventListener('click', () => {
+            exportAbort = true;
+            exportPhotosModal.classList.add('hidden');
+            showToast('照片导出已取消', 'info');
+        });
+        
+        // 导出所有照片为ZIP文件
+        async function exportAllPhotos() {
+            const zip = new JSZip();
+            let processed = 0;
+            const totalPhotos = inspectionRecords.reduce((count, record) => {
+                let recordCount = 0;
+                if (record.beforePhoto && record.beforePhoto.data) recordCount++;
+                if (record.afterPhoto && record.afterPhoto.data) recordCount++;
+                return count + recordCount;
+            }, 0);
+            
+            // 获取当前年月作为文件夹名
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const folderName = `设备检查照片_${year}${month}`;
+            const mainFolder = zip.folder(folderName);
+            
+            // 遍历所有记录，添加照片到ZIP
+            for (const record of inspectionRecords) {
+                if (exportAbort) return;
+                
+                // 创建设备编号文件夹
+                const equipmentFolder = mainFolder.folder(record.equipmentId);
+                
+                // 添加整改前照片
+                if (record.beforePhoto && record.beforePhoto.data) {
+                    const dateStr = formatDate(record.inspectionDate).replace(/-/g, '');
+                    const fileName = `${record.equipmentId}_${dateStr}_整改前.${record.beforePhoto.ext}`;
+                    
+                    // 转换base64为二进制
+                    const base64Data = record.beforePhoto.data.split(',')[1];
+                    equipmentFolder.file(fileName, base64Data, { base64: true });
+                    
+                    processed++;
+                    updateExportProgress(processed, totalPhotos);
+                    
+                    // 等待一小段时间，避免UI阻塞
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+                
+                // 添加整改后照片
+                if (record.afterPhoto && record.afterPhoto.data) {
+                    const dateStr = formatDate(record.inspectionDate).replace(/-/g, '');
+                    const fileName = `${record.equipmentId}_${dateStr}_整改后.${record.afterPhoto.ext}`;
+                    
+                    // 转换base64为二进制
+                    const base64Data = record.afterPhoto.data.split(',')[1];
+                    equipmentFolder.file(fileName, base64Data, { base64: true });
+                    
+                    processed++;
+                    updateExportProgress(processed, totalPhotos);
+                    
+                    // 等待一小段时间，避免UI阻塞
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+            }
+            
+            if (exportAbort) return;
+            
+            // 生成ZIP文件并下载
+            zip.generateAsync({ type: "blob" }, (metadata) => {
+                const progress = Math.round(metadata.percent);
+                exportProgressBar.style.width = `${progress}%`;
+                exportProgressText.textContent = `正在打包... ${progress}%`;
+            }).then((content) => {
+                // 隐藏进度框
+                exportPhotosModal.classList.add('hidden');
+                
+                // 保存文件
+                saveAs(content, `${folderName}.zip`);
+                showToast(`所有照片导出成功，共 ${totalPhotos} 张`, 'success');
+            });
+        }
+        
+        // 更新导出进度
+        function updateExportProgress(processed, total) {
+            const progress = Math.round((processed / total) * 100);
+            exportProgressBar.style.width = `${progress}%`;
+            exportProgressText.textContent = `正在处理... ${processed}/${total} (${progress}%)`;
+        }
+        
+        // 下载单个照片
+        function downloadPhoto(photoData, ext, equipmentId, date, type) {
+            try {
+                // 创建文件名：设备编号_日期_类型.扩展名
+                const dateStr = date.replace(/-/g, '');
+                const fileName = `${equipmentId}_${dateStr}_${type}.${ext}`;
+                
+                // 转换base64数据为Blob
+                const base64Data = photoData.split(',')[1];
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: `image/${ext}` });
+                
+                // 创建下载链接
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                
+                // 清理
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+                
+                showToast(`照片已下载: ${fileName}`, 'success');
+            } catch (error) {
+                console.error('下载照片失败:', error);
+                showToast('照片下载失败，请重试', 'error');
+            }
+        }
+        
+        // 显示提示框
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toastIcon');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            // 设置图标
+            toastIcon.className = '';
+            switch (type) {
+                case 'success':
+                    toastIcon.className = 'fa fa-check-circle mr-2 text-success';
+                    break;
+                case 'warning':
+                    toastIcon.className = 'fa fa-exclamation-triangle mr-2 text-accent';
+                    break;
+                case 'error':
+                    toastIcon.className = 'fa fa-times-circle mr-2 text-danger';
+                    break;
+                default:
+                    toastIcon.className = 'fa fa-info-circle mr-2';
+            }
+            
+            // 设置消息
+            toastMessage.textContent = message;
+            
+            // 显示提示框
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            
+            // 3秒后隐藏
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+        
+        // 查看照片
+        function viewPhoto(photoUrl, title) {
+            // 创建遮罩层
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4';
+            overlay.id = 'photoOverlay';
+            
+            // 创建照片容器
+            const container = document.createElement('div');
+            container.className = 'relative max-w-4xl w-full';
+            
+            // 照片标题
+            const photoTitle = document.createElement('h3');
+            photoTitle.className = 'text-white text-lg font-medium mb-2 text-center';
+            photoTitle.textContent = title;
+            
+            // 照片元素
+            const img = document.createElement('img');
+            img.src = photoUrl;
+            img.alt = title;
+            img.className = 'max-w-full max-h-[80vh] mx-auto rounded-lg';
+            
+            // 关闭按钮
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'absolute top-0 right-0 -mt-8 text-white hover:text-gray-300 transition-custom';
+            closeBtn.innerHTML = '<i class="fa fa-times text-2xl"></i>';
+            closeBtn.onclick = () => {
+                document.body.removeChild(overlay);
+            };
+            
+            // 组装
+            container.appendChild(photoTitle);
+            container.appendChild(img);
+            container.appendChild(closeBtn);
+            overlay.appendChild(container);
+            
+            // 添加到页面
+            document.body.appendChild(overlay);
+            
+            // 点击遮罩层关闭
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    document.body.removeChild(overlay);
+                }
+            });
+        }
+        
+        // 格式化日期
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>
